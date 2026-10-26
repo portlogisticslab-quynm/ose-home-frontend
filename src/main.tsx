@@ -13,7 +13,7 @@ import ArticlePage from "./pages/ArticlePage";
 import seed from "./data/catalog.fallback.json";
 import { seedToCatalog } from "./lib/catalog";
 import { articlesIndex } from "./lib/articles";
-import { apiFetch } from "./lib/api";
+import { apiBase, apiFetch } from "./lib/api";
 import type { Article, Lang, Seed } from "./lib/types";
 
 // Language comes from the URL (/en/…), not only from <html lang>: the dev server and any
@@ -24,6 +24,27 @@ const htmlLang = document.documentElement.lang;
 document.documentElement.lang = lang;
 const initial = seedToCatalog(seed as Seed);
 const root = document.getElementById("root")!;
+
+// Article images live under /media/ on the static site; an image published after the last build is not
+// there yet -> load it from the API instead (once per image).
+const API_MEDIA = `${apiBase()}/api/v1`;
+function retryMedia(img: HTMLImageElement) {
+  if (img.dataset.mediaRetry) return;
+  const u = new URL(img.currentSrc || img.src, window.location.href);
+  if (u.origin !== window.location.origin || !u.pathname.startsWith("/media/")) return;
+  img.dataset.mediaRetry = "1";
+  img.src = `${API_MEDIA}${u.pathname}`;
+}
+document.addEventListener("error", (e) => {
+  const img = e.target as HTMLImageElement | null;
+  if (img && img.tagName === "IMG") retryMedia(img);
+}, true);
+// Images in the prerendered HTML may have failed before this script ran.
+window.addEventListener("load", () => {
+  document.querySelectorAll<HTMLImageElement>('img[src^="/media/"]').forEach((img) => {
+    if (img.complete && img.naturalWidth === 0) retryMedia(img);
+  });
+});
 
 const listRe = /^\/(?:bai-viet|en\/articles)\/?$/;
 const articleRe = /^\/(?:bai-viet|en\/articles)\/([a-z0-9-]+)\/?$/;
