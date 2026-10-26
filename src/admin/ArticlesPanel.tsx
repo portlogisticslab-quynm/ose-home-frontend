@@ -370,6 +370,128 @@ function Editor({ session, onAuthError, initial, categories, apps, onClose, onSa
   );
 }
 
+// ---------------------------------------------------------------- import from WordPress
+interface WpPreview {
+  site: string; source: "rest" | "rss"; count: number; categories: string[];
+  posts: Array<{ slug: string; title: string; date: string | null; link: string; categories: string[]; tags: string[];
+    has_cover: boolean; images: number; words: number; exists: boolean }>;
+}
+interface WpJob { running: boolean; total?: number; done?: number; current?: string; result?: WpResult | null; error?: string | null }
+interface WpResult {
+  source: string; posts: number; created: number; updated: number; skipped: number;
+  images_saved: number; images_failed: number; errors: string[];
+}
+
+function WordPressImport({ session, onAuthError, onDone, onClose }: {
+  session: Session; onAuthError: (e: unknown) => void; onDone: () => void; onClose: () => void;
+}) {
+  const [site, setSite] = useState("https://portlogistics.vn");
+  const [status, setStatus] = useState<"published" | "draft">("published");
+  const [overwrite, setOverwrite] = useState(false);
+  const [preview, setPreview] = useState<WpPreview | null>(null);
+  const [result, setResult] = useState<WpResult | null>(null);
+  const [busy, setBusy] = useState<"" | "check" | "import">("");
+  const [err, setErr] = useState("");
+  const qs = () => `site=${encodeURIComponent(site.trim())}`;
+
+  const check = async () => {
+    setBusy("check"); setErr(""); setPreview(null); setResult(null);
+    try { setPreview(await apiFetch<WpPreview>(`/api/v1/admin/import-wordpress?${qs()}`, { token: session.token, timeoutMs: 120000 })); }
+    catch (e) { onAuthError(e); setErr(e instanceof ApiError ? e.message : String(e)); }
+    finally { setBusy(""); }
+  };
+  const [progress, setProgress] = useState("");
+  const run = async () => {
+    if (!preview) return;
+    const n = overwrite ? preview.count : preview.posts.filter((p) => !p.exists).length;
+    if (!window.confirm(`Nhập ${n} bài từ ${preview.site} vào ose.vn (${status === "published" ? "đăng ngay, giữ ngày gốc" : "lưu nháp"})?\nẢnh sẽ được tải về máy chủ ose.vn; việc này có thể mất vài phút.`)) return;
+    setBusy("import"); setErr(""); setProgress("");
+    try {
+      await apiFetch(`/api/v1/admin/import-wordpress?${qs()}&status=${status}&overwrite=${overwrite}&confirm=true`,
+        { method: "POST", token: session.token, timeoutMs: 120000 });
+      // The server works in the background; poll every 2 s.
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const st = await apiFetch<WpJob>("/api/v1/admin/import-wordpress/status", { token: session.token, timeoutMs: 15000 });
+        if (st.running) { setProgress(`Đang nhập ${st.done}/${st.total}: ${st.current ?? ""}`); continue; }
+        if (st.error) throw new Error(st.error);
+        setResult(st.result ?? null); setPreview(null); onDone();
+        break;
+      }
+    } catch (e) { onAuthError(e); setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(""); setProgress(""); }
+  };
+
+  return (
+    <div className="mb-6 rounded-xl border border-sonar/40 bg-sonar-100/40 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-ink">Nhập bài từ WordPress</h2>
+          <p className="mt-1 max-w-3xl text-sm text-mute">
+            Đọc toàn bộ bài đã đăng của một trang WordPress (ví dụ portlogistics.vn), chuyển sang Markdown, tải ảnh về ose.vn,
+            giữ đường dẫn (slug), ngày đăng, chuyên mục và thẻ. Bài trùng đường dẫn với bài đã có sẽ được bỏ qua.
+          </p>
+        </div>
+        <button className={btn.ghost} onClick={onClose}>Đóng</button>
+      </div>
+      {err && <div className="mt-3"><Notice kind="error">{err}</Notice></div>}
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-ink">Trang WordPress</span>
+          <input className={`${inputCls} w-72 font-mono text-xs`} value={site} onChange={(e) => { setSite(e.target.value); setPreview(null); }} />
+        </label>
+        <button className={btn.ghost} disabled={!!busy} onClick={check}>{busy === "check" ? "Đang đọc…" : "1. Kiểm tra danh sách bài"}</button>
+      </div>
+
+      {preview && (
+        <div className="mt-4 rounded-lg border border-line bg-white p-4 text-sm">
+          <p>
+            Tìm thấy <b>{preview.count}</b> bài ({preview.source === "rest" ? "qua WordPress API" : "qua RSS — chỉ có các bài gần đây"});{" "}
+            <b>{preview.posts.filter((p) => p.exists).length}</b> bài đã có trên ose.vn.
+            {preview.categories.length > 0 && <> Chuyên mục: {preview.categories.join(", ")} (chuyên mục chưa có sẽ được tạo mới).</>}
+          </p>
+          <div className="mt-3 max-h-72 overflow-y-auto rounded border border-line">
+            <table className="w-full text-left text-xs">
+              <thead className="sticky top-0 bg-paper"><tr>
+                <th className="px-3 py-2 font-medium">Bài viết</th><th className="px-3 py-2 font-medium">Ngày</th>
+                <th className="px-3 py-2 font-medium">Chuyên mục</th><th className="px-3 py-2 font-medium">Ảnh</th>
+                <th className="px-3 py-2 font-medium">Chữ</th><th className="px-3 py-2 font-medium" /></tr></thead>
+              <tbody>
+                {preview.posts.map((p) => (
+                  <tr key={p.link || p.slug} className="border-t border-line/70">
+                    <td className="max-w-md px-3 py-1.5"><a href={p.link} target="_blank" rel="noopener noreferrer" className="text-ink hover:text-sonar">{p.title}</a></td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-mute">{p.date ? new Date(asUtc(p.date)!).toLocaleDateString("vi-VN") : "—"}</td>
+                    <td className="px-3 py-1.5 text-mute">{p.categories.join(", ") || "—"}</td>
+                    <td className="px-3 py-1.5 text-mute">{p.images + (p.has_cover ? 1 : 0)}</td>
+                    <td className="px-3 py-1.5 text-mute">{p.words}</td>
+                    <td className="px-3 py-1.5">{p.exists && <span className="rounded bg-paper px-1.5 py-0.5 text-mute">đã có</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
+            <label className="flex items-center gap-2"><input type="radio" className="accent-ink" checked={status === "published"} onChange={() => setStatus("published")} /> Đăng ngay (giữ ngày đăng gốc)</label>
+            <label className="flex items-center gap-2"><input type="radio" className="accent-ink" checked={status === "draft"} onChange={() => setStatus("draft")} /> Lưu nháp để xem lại</label>
+            <label className="flex items-center gap-2"><input type="checkbox" className="accent-ink" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} /> Ghi đè bài đã có</label>
+            <button className={btn.primary} disabled={!!busy} onClick={run}>{busy === "import" ? "Đang nhập…" : "2. Nhập bài"}</button>
+          </div>
+          {progress && <p className="mt-3 text-xs text-mute">{progress} — có thể đóng trang, máy chủ vẫn tiếp tục nhập.</p>}
+        </div>
+      )}
+
+      {result && (
+        <div className="mt-4"><Notice kind={result.errors.length ? "error" : "ok"}>
+          Đã nhập {result.created} bài mới{result.updated ? `, cập nhật ${result.updated}` : ""}, bỏ qua {result.skipped} bài đã có.
+          {" "}Ảnh: tải về {result.images_saved}{result.images_failed ? `, ${result.images_failed} ảnh giữ link gốc` : ""}.
+          {" "}Trang ose.vn tự cập nhật sau vài phút.
+          {result.errors.length > 0 && <span className="mt-1 block text-xs">Lỗi: {result.errors.join(" · ")}</span>}
+        </Notice></div>
+      )}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- list
 export default function ArticlesPanel({ session, onAuthError }: { session: Session; onAuthError: (e: unknown) => void }) {
   const [rows, setRows] = useState<Row[]>([]);
@@ -380,6 +502,7 @@ export default function ArticlesPanel({ session, onAuthError }: { session: Sessi
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "draft" | "published">("all");
   const [editing, setEditing] = useState<Row | null>(null);
+  const [showWp, setShowWp] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setErr("");
@@ -420,8 +543,10 @@ export default function ArticlesPanel({ session, onAuthError }: { session: Sessi
       </select>
       <input type="search" placeholder="Tìm…" value={q} onChange={(e) => setQ(e.target.value)} className={`${inputCls} w-44`} />
       <button className={btn.ghost} onClick={load}>Tải lại</button>
+      {session.role === "admin" && <button className={btn.ghost} onClick={() => setShowWp((v) => !v)}>Nhập từ WordPress</button>}
       <button className={btn.primary} onClick={() => setEditing({ ...EMPTY, author: session.username })}>+ Bài viết mới</button></>}>
       {err && <Notice kind="error">{err}</Notice>}
+      {showWp && <WordPressImport session={session} onAuthError={onAuthError} onDone={load} onClose={() => setShowWp(false)} />}
       {loading ? <p className="text-sm text-mute">Đang tải…</p> : (
         <div className="-mx-5 overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">

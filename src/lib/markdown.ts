@@ -40,6 +40,8 @@ function inline(src: string, opts: MdOptions): string {
   // 2. images and links (before escaping, so the URL is read raw)
   const tokens: string[] = [];
   const keep = (h: string) => { tokens.push(h); return `\u0001${tokens.length - 1}\u0001`; };
+  // backslash escapes: \* \_ \[ … are shown literally
+  s = s.replace(/\\([\\`*_[\]()#~>!|{}.+-])/g, (_m, ch: string) => keep(esc(ch)));
   s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g, (m, alt: string, url: string, title?: string) => {
     const u = safeUrl(url, opts);
     if (!u) return esc(m);
@@ -76,7 +78,8 @@ const plain = (s: string) => s.replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\[(
   .replace(/[`*_~]/g, "").trim();
 
 function splitRow(line: string): string[] {
-  return line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+  // "\|" inside a cell is a literal pipe, not a column separator
+  return line.trim().replace(/^\|/, "").replace(/(?<!\\)\|$/, "").split(/(?<!\\)\|/).map((c) => c.trim());
 }
 
 export function renderMarkdown(md: string, opts: MdOptions = {}): Rendered {
