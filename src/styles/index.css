@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body { @apply bg-white font-sans text-ink antialiased; }
+  ::selection { background: rgba(232, 97, 58, .2); }
+  :focus-visible { outline: 2px solid #1FA59A; outline-offset: 2px; }
+}
+
+/* Scroll-in animation — only when JS is running (html.js) and motion is allowed */
+html.js .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
+html.js .reveal.is-visible { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  html.js .reveal { opacity: 1; transform: none; transition: none; }
+}
+
+/* Article body (Markdown rendered by src/lib/markdown.ts) */
+@layer components {
+  .ose-prose { @apply text-[1.05rem] leading-[1.8] text-ink/90; overflow-wrap: anywhere; }
+  .ose-prose > * + * { margin-top: 1.1em; }
+  .ose-prose h2 { @apply mt-12 scroll-mt-24 text-[1.6rem] font-bold leading-snug tracking-tight text-ink; }
+  .ose-prose h3 { @apply mt-9 scroll-mt-24 text-xl font-semibold leading-snug text-ink; }
+  .ose-prose h4 { @apply mt-7 scroll-mt-24 text-lg font-semibold text-ink; }
+  .ose-prose a { @apply font-medium text-sonar underline decoration-sonar/40 underline-offset-2 hover:decoration-sonar; }
+  .ose-prose strong { @apply font-semibold text-ink; }
+  .ose-prose ul { @apply list-disc pl-6; }
+  .ose-prose ol { @apply list-decimal pl-6; }
+  .ose-prose li { @apply mt-1.5 pl-1; }
+  .ose-prose li > ul, .ose-prose li > ol { @apply mt-1.5; }
+  .ose-prose li::marker { @apply text-signal; }
+  .ose-prose blockquote { @apply border-l-4 border-signal bg-paper py-3 pl-5 pr-4 text-ink/80; }
+  .ose-prose blockquote > * + * { margin-top: .6em; }
+  .ose-prose code { @apply rounded bg-paper px-1.5 py-0.5 font-mono text-[.88em] text-ink; }
+  .ose-prose pre { @apply overflow-x-auto rounded-xl bg-ink-950 p-4 text-sm leading-relaxed text-white/90; }
+  .ose-prose pre code { @apply bg-transparent p-0 text-inherit; }
+  .ose-prose hr { @apply my-10 border-line; }
+  .ose-prose img { @apply mx-auto h-auto max-w-full rounded-lg; }
+  .ose-prose figure { @apply my-8; }
+  .ose-prose figcaption { @apply mt-2 text-center text-sm text-mute; }
+  .ose-prose .table-wrap { @apply overflow-x-auto rounded-lg border border-line; }
+  .ose-prose table { @apply w-full border-collapse text-[.95rem]; }
+  .ose-prose th { @apply bg-paper px-3 py-2 text-left font-semibold text-ink; }
+  .ose-prose td { @apply border-t border-line px-3 py-2 align-top; }
+  .ose-prose .video { @apply relative my-8 aspect-video overflow-hidden rounded-xl bg-ink-950; }
+  .ose-prose .video iframe { @apply absolute inset-0 h-full w-full border-0; }
+}

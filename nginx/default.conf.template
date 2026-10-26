@@ -1,0 +1,55 @@
+# Rendered by the nginx image at start-up (envsubst): ${PORT}, ${BACKEND_URL}
+server {
+    listen ${PORT};
+    server_name _;
+    root /usr/share/nginx/html;
+    server_tokens off;
+
+    gzip on;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml application/xml;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+    location = /healthz { access_log off; default_type text/plain; return 200 "ok\n"; }
+
+    # API → FastAPI backend (same origin, so no CORS needed for the landing page)
+    location /api/ {
+        proxy_pass ${BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header CF-Connecting-IP $http_cf_connecting_ip;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+        client_max_body_size 6m;
+    }
+
+    # Hashed build assets: cache for a year.
+    # (expires is used instead of add_header so the server-level security headers are kept)
+    location /assets/ {
+        expires 1y;
+        try_files $uri =404;
+    }
+
+    location /admin/ {
+        expires -1;
+        try_files $uri /admin/index.html;
+    }
+
+    # Prerendered pages: /, /en/, /apps/<slug>/, /bai-viet/<slug>/, /en/articles/<slug>/ …
+    # Apps added after the last build fall back to the generic landing page.
+    location /en/ {
+        expires 5m;
+        try_files $uri $uri/index.html /en/index.html;
+    }
+    location / {
+        expires 5m;
+        try_files $uri $uri/index.html /index.html;
+    }
+}

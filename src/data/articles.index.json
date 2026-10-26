@@ -1,0 +1,8 @@
+{
+  "categories": [
+    { "id": 1, "slug": "ky-thuat-cang", "name_vi": "Kỹ thuật cảng", "name_en": "Port engineering", "desc_vi": "", "desc_en": "" },
+    { "id": 2, "slug": "ai-logistics", "name_vi": "AI & Logistics", "name_en": "AI & Logistics", "desc_vi": "", "desc_en": "" },
+    { "id": 3, "slug": "phan-mem-moi", "name_vi": "Phần mềm mới", "name_en": "New software", "desc_vi": "", "desc_en": "" }
+  ],
+  "articles": []
+}
