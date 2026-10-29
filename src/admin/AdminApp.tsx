@@ -10,6 +10,7 @@ import DataPanel from "./DataPanel";
 import PromotePanel from "./PromotePanel";
 import RegistrationsPanel from "./RegistrationsPanel";
 import StatsPanel from "./StatsPanel";
+import VisitsPanel from "./VisitsPanel";
 import ArticlesPanel from "./ArticlesPanel";
 import PublishBar from "./PublishBar";
 
@@ -82,7 +83,8 @@ export default function AdminApp() {
     ["articles", "Bài viết"],
     ...ENTITIES.map((e) => [e.key, e.label] as [Tab, string]),
     ["registrations", "Đăng ký khoá học"],
-    ["stats", "Thống kê lượt bấm"],
+    ["visits", "Truy cập app"],
+    ["stats", "Lượt bấm trên ose.vn"],
     ["promote", "Quảng bá"],
     ...(session.role === "admin"
       ? ([["users", "Người dùng & quyền"], ["audit", "Nhật ký"], ["data", "Sao lưu & nhập danh mục"]] as Array<[Tab, string]>) : []),
@@ -114,6 +116,7 @@ export default function AdminApp() {
         {def && <EntityPanel key={def.key} def={def} session={session} onAuthError={onAuthError} />}
         {tab === "registrations" && <RegistrationsPanel session={session} onAuthError={onAuthError} />}
         {tab === "articles" && <ArticlesPanel session={session} onAuthError={onAuthError} />}
+        {tab === "visits" && <VisitsPanel session={session} onAuthError={onAuthError} />}
         {tab === "stats" && <StatsPanel session={session} onAuthError={onAuthError} />}
         {tab === "promote" && <PromotePanel />}
         {tab === "users" && <UsersPanel session={session} onAuthError={onAuthError} />}
